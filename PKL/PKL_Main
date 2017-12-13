@@ -1,0 +1,235 @@
+################################################
+## By Dominic Ricchio, November 2017          ##
+##                                            ##
+## Title: PKL_Main                            ##
+## Function: Test to find number of rotations ##
+##                                            ##
+################################################
+
+## ========================================== ##
+## Analog Voltage to Angle
+##
+## Angle = arcsin((Vout - Offset)/Sensitivity)
+## Offset = Voltage and Sensitivity = V/degree
+##
+## ========================================== ##
+
+import u3
+import traceback
+from datetime import datetime
+import time
+
+d= u3.U3()
+testCount = 0
+MAX_REQUESTS = 500
+rotationCount = 0     #Addition of rotation
+duplicateCount = 0    # Count duplications to prevent adding up Rotation Count
+startCount = 0        #Initialize Count without adding it at the first
+num1 = 0
+num2 = 0
+valueDir = 0
+
+class Direction:
+    N = 0
+    CW = 1
+    CCW = 2
+
+def main():
+    global testCount
+    print "PKL_Main Procedure Starting"
+    print "Attempting to connect the Labjack U3"
+
+    try:
+        d.configU3()
+        d.getCalibrationData()
+        d.configIO(FIOAnalog=3)
+        print "Configuring U3 stream"
+        d.streamConfig(NumChannels=2, PChannels=[0, 1], NChannels=[31, 31], Resolution=3, ScanFrequency=5000)
+        testCount += 1
+
+        cookieMunchie()
+
+    except:
+        if testCount > 0:
+            print "Test is successful, Labjack disconnected"
+        else:
+            print "Labjack U3 is not connected"
+
+
+def cookieMunchie():
+    global result
+    global rotationCount
+    global duplicateCount
+    global startCount
+    global num1
+    global num2
+    global valueDir
+    # Start Test Cycle
+    try:
+        print "Start stream"
+        d.streamStart()
+        start = datetime.now()
+        print start
+        missed = 0  # initialize counters
+        dataCount = 0
+        packetCount = 0
+
+
+        for r in d.streamData():
+            if r is not None:
+                #Stop Condition
+                if dataCount >= MAX_REQUESTS:
+                    break
+
+                if r['errors'] != 0:
+                    print "Error: %s ; " % r['errors'], datetime.now()
+
+                if r['numPackets'] != d.packetsPerRequest:
+                    print "----- UNDERFLOW : %s : " % r['numPackets'], datetime.now()
+
+                if r['missed'] != 0:
+                    missed += r['missed']
+                    print "+++ Missed ", r['missed']
+
+                result = float(round(sum(r['AIN0']) / len(r['AIN0']),1 )) ###  0.5 = -180 and 4.5 = 180 and 2.5 = 0 (Actuator Position)
+                if (num1 == 0) and (num2 == 0):
+                    num1 += result
+                else:
+                    if (num1 > 0) and (num2 == 0):
+                        num2 = num1
+                    else:
+                        if (num1 == num2):
+                            num1 = 0
+                            num2 = 0
+
+                if (num1 < num2):
+                    valueDir = Direction.CW # CW motion
+                elif (num1 > num2):
+                    valueDir = Direction.CCW # CCW motion
+                elif (num1 == num2) or (num1 == num1):
+                    valueDir = Direction.N
+
+                # ======================================================================
+                if ((result == 0.5) or (result == 4.6)):
+                    if (duplicateCount == 0):
+                        if ((valueDir == 1) or (valueDir == 2)):
+                            rotationCount += 0.5
+                            duplicateCount += 1
+                            if (valueDir == 1):
+                                valueDir = Direction.CW
+                            else:
+                                valueDir = Direction.CCW
+                        else:
+                            valueDir = Direction.N
+                    else:
+                        duplicateCount += 1
+                elif (result <= 3.0) or (result >= 2.0):
+                    if (duplicateCount == 0):
+                        if ((valueDir == 1) or (valueDir == 2)):
+                            rotationCount += 0.5
+                            duplicateCount += 1
+                            if (valueDir == 1):
+                                valueDir = Direction.CW
+                            else:
+                                valueDir = Direction.CCW
+                        else:
+                            print "Fail"
+                            valueDir = Direction.N
+                    else:
+                        print "Fail"
+                        duplicateCount += 1
+                elif (result <= 1.9) or (result >= 0.6):
+                    if (duplicateCount == 0):
+                        if ((valueDir == 1) or (valueDir == 2)):
+                            rotationCount += 0.25
+                            duplicateCount += 1
+                            if (valueDir == 1):
+                                valueDir = Direction.CW
+                            else:
+                                valueDir = Direction.CCW
+                        else:
+                            valueDir = Direction.N
+                    else:
+                        duplicateCount += 1
+                elif (result <= 4.5) or (result >= 3.1):
+                    if (duplicateCount == 0):
+                        if((valueDir == 1) or (valueDir == 2)):
+                            rotationCount += 0.25
+                            duplicateCount += 1
+                            if (valueDir == 1):
+                                valueDir = Direction.CW
+                            else:
+                                valueDir = Direction.CCW
+                        else:
+                            valueDir = Direction.N
+                    else:
+                        duplicateCount += 1
+                else:
+                    # Reset Duplicate count to count rotation correctly
+                    duplicateCount = 0
+
+                # ===============================================================================
+
+                #if ((result == "0.5") or (result == "4.6")) and (duplicateCount == 0) and ((dirBool == "1") or (dirBool == "2")):
+                 #   rotationCount += 0.5
+                  #  duplicateCount += 1
+                #elif (result == "2.5") and (duplicateCount == 0) and ((dirBool == "1") or (dirBool == "2")):
+                 #   rotationCount += 0.5
+                  #  duplicateCount += 1
+                #elif ((result == "0.6") or (result == "0.7") or (result == "0.8") or (result == "0.9")) and (duplicateCount == 0) and ((dirBool == "1") or (dirBool == "2")):
+                 #   rotationCount += 0.25
+                  #  duplicateCount += 1
+                #elif ((result == "4.4") or (result == "4.3") or (result == "4.2") or (result == "4.1")) and (duplicateCount == 0) and ((dirBool == "1") or (dirBool == "2")):
+                 #   rotationCount += 0.25
+                  #  duplicateCount += 1
+                #else:
+                 #   if ((result == "0.5") or (result == "4.6")) and (duplicateCount >= 1):
+                  #      duplicateCount += 1
+                   # elif (result == "2.5") and (duplicateCount >= 1):
+                    #    duplicateCount += 1
+                    #elif ((result == "0.6") or (result == "0.7") or (result == "0.8") or (result == "0.9")) and (duplicateCount >= 1):
+                     #   duplicateCount += 1
+                    #elif ((result == "4.4") or (result == "4.3") or (result == "4.2") or (result == "4.1")) and (duplicateCount >= 1):
+                     #   duplicateCount += 1
+                    #else:
+                        #Reset Duplicate count to count rotation correctly
+                     #   duplicateCount = 0
+
+
+                print "Analog Voltage: ", result, " | Rotation: ", rotationCount
+                #print "Analog Voltage: ", str(round(result, 1))
+
+                dataCount += 1
+                packetCount += r['numPackets']
+
+            else:
+                #No data obtained if stream didn't show or USB read timeout ~ 1 sec
+                print "No Data obtained ", datetime.now()
+    except:
+        print "".join(i for i in traceback.format_exc())
+
+    finally:
+        stop = datetime.now()
+        d.streamStop()
+        print
+        reading = d.streamData(convert=False)
+        print(reading['result'])
+        print
+        print "Stream stopped, ", stop
+        d.close()
+
+        sampleTotal = packetCount * d.streamSamplesPerPacket
+
+        scanTotal = sampleTotal / 2  # sampleTotal / NumChannels
+        print "%s requests with %s packets per request with %s samples per packet = %s samples total." % (
+            dataCount, (float(packetCount) / dataCount), d.streamSamplesPerPacket, sampleTotal)
+        print "%s samples were lost due to errors." % missed
+        sampleTotal -= missed
+        print "Adjusted number of samples = %s" % sampleTotal
+
+        runTime = (stop - start).seconds + float((stop - start).microseconds) / 1000000
+        print "The experiment took %s seconds." % runTime
+        print "Scan Rate : %s scans / %s seconds = %s Hz" % (scanTotal, runTime, float(scanTotal) / runTime)
+        print "Sample Rate : %s samples / %s seconds = %s Hz" % (sampleTotal, runTime, float(sampleTotal) / runTime)
+
+main()
