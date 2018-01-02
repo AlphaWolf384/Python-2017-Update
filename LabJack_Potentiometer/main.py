@@ -2,8 +2,8 @@ import u3
 import traceback
 from datetime import datetime
 
-MAX_REQUESTS = 250
-testCount = 0
+MAX_REQUESTS = 250  # Loops for 250 times and can be changed for desire inputs
+testCount = 0   # Initialize Counts for MAX_REQUESTS
 d = u3.U3()
 
 def main():
@@ -39,6 +39,7 @@ def main():
 def test():
     # Start Test Cycle
     try:
+        # Initialize stream connections and counts
         print "Start stream"
         d.streamStart()
         start = datetime.now()
@@ -60,7 +61,7 @@ def test():
                 if r['missed'] != 0:
                     missed += r['missed']
                     print "+++ Missed ", r['missed']
-
+                # Raw Results are obtained below if it missed all if statements
                 print "Potentiometer Voltage: ", sum(r['AIN0']) / len(r['AIN0'])
 
                 dataCount += 1
@@ -73,11 +74,13 @@ def test():
         print "".join(i for i in traceback.format_exc())
 
     finally:
+        # When MAX_REQUESTS reached numbers then starts to cut stream connection to shut down
         stop = datetime.now()
         d.streamStop()
         print "Stream stopped"
         d.close()
-
+        
+        # Starts to gather data together and preparing outputs
         sampleTotal = packetCount * d.streamSamplesPerPacket
         scanTotal = sampleTotal / 2 # sampleTotal / numChannels
 
