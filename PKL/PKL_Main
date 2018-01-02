@@ -40,16 +40,19 @@ def main():
     print "Attempting to connect the Labjack U3"
 
     try:
+        # Initialize Stream connection and counts
         d.configU3()
         d.getCalibrationData()
         d.configIO(FIOAnalog=3)
         print "Configuring U3 stream"
         d.streamConfig(NumChannels=2, PChannels=[0, 1], NChannels=[31, 31], Resolution=3, ScanFrequency=5000)
         testCount += 1
-
+        
+        # Starts Function cookieMunchie to grab data from LabJack U3 and start use it in the code
         cookieMunchie()
 
     except:
+        # Test counts are reached and time to disconnect, TODO: add Disconnect code in here
         if testCount > 0:
             print "Test is successful, Labjack disconnected"
         else:
@@ -90,7 +93,9 @@ def cookieMunchie():
                 if r['missed'] != 0:
                     missed += r['missed']
                     print "+++ Missed ", r['missed']
-
+                # Raw results are here if it missed all if statements and do something with results
+                # WARNING: Honeywell can only sense 50 degree and this is modified to work with 50 degrees
+                # Code needs to be iron out to make it more workable and this is partially working so far
                 result = float(round(sum(r['AIN0']) / len(r['AIN0']),1 )) ###  0.5 = -180 and 4.5 = 180 and 2.5 = 0 (Actuator Position)
                 if (num1 == 0) and (num2 == 0):
                     num1 += result
@@ -110,6 +115,7 @@ def cookieMunchie():
                     valueDir = Direction.N
 
                 # ======================================================================
+                # Rotation result count for each cycle
                 if ((result == 0.5) or (result == 4.6)):
                     if (duplicateCount == 0):
                         if ((valueDir == 1) or (valueDir == 2)):
@@ -169,7 +175,8 @@ def cookieMunchie():
                     duplicateCount = 0
 
                 # ===============================================================================
-
+                # Failed attempt to use complex if-else statements to make fool-proof rotation counts 
+                # Fool-proof rotation counts was intended to skip count if it attempt to move and back forth at 0.5 and 4.6
                 #if ((result == "0.5") or (result == "4.6")) and (duplicateCount == 0) and ((dirBool == "1") or (dirBool == "2")):
                  #   rotationCount += 0.5
                   #  duplicateCount += 1
@@ -209,6 +216,7 @@ def cookieMunchie():
         print "".join(i for i in traceback.format_exc())
 
     finally:
+        # Cut Stream connection and time to shutdown
         stop = datetime.now()
         d.streamStop()
         print
@@ -217,7 +225,8 @@ def cookieMunchie():
         print
         print "Stream stopped, ", stop
         d.close()
-
+        
+        # Gather all results together and display the outputs
         sampleTotal = packetCount * d.streamSamplesPerPacket
 
         scanTotal = sampleTotal / 2  # sampleTotal / NumChannels
